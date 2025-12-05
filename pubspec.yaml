@@ -1,7 +1,9 @@
 name: aws_uploader
 description: A Flutter plugin to upload images/files to AWS S3 using Cognito token-based authentication. Supports progress events and cancellation.
 version: 0.0.1
-homepage:
+homepage: https://github.com/brijeshuniqual/aws_uploader
+repository: https://github.com/brijeshuniqual/aws_uploader
+issue_tracker: https://github.com/brijeshuniqual/aws_uploader/issues
 
 environment:
   sdk: ^3.9.2
