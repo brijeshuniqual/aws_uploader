@@ -4,14 +4,17 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'aws_uploader'
-  s.version          = '0.0.1'
-  s.summary          = 'A new Flutter plugin.'
+  s.version          = '0.1.0'
+  s.summary          = 'Flutter plugin to upload any file to AWS S3 using Cognito token-based authentication.'
   s.description      = <<-DESC
-A new Flutter plugin.
-                       DESC
-  s.homepage         = 'http://example.com'
+    aws_uploader lets you upload images, videos, documents, and any other file type
+    directly to AWS S3 from Flutter apps. It uses Cognito Developer Identity (token +
+    identityId) for authentication, streams real-time upload progress via an EventChannel,
+    supports multi-part uploads for large files, and allows cancellation of in-flight uploads.
+  DESC
+  s.homepage         = 'https://github.com/brijeshuniqual/aws_uploader'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.author           = { 'brijeshbhut' => 'uniqual.dev@gmail.com' }
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'
@@ -23,10 +26,4 @@ A new Flutter plugin.
   # Flutter.framework does not contain a i386 slice.
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
   s.swift_version = '5.0'
-
-  # If your plugin requires a privacy manifest, for example if it uses any
-  # required reason APIs, update the PrivacyInfo.xcprivacy file to describe your
-  # plugin's privacy impact, and then uncomment this line. For more information,
-  # see https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
-  # s.resource_bundles = {'aws_uploader_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
 end

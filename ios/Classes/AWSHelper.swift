@@ -27,36 +27,62 @@ class AWSHelper {
         case "ap-northeast-2": return .APNortheast2
         case "eu-west-1": return .EUWest1
         case "eu-central-1": return .EUCentral1
-        default: return nil  // <-- invalid region returns nil
+        default: return nil
         }
     }
 
     /// Initialize S3 transfer utility with provided Cognito credentials
     func initializeS3(regionName: String, identityPoolId: String, providerName: String) -> Bool {
+        print("🔧 [AWSHelper] initializeS3 called — region: \(regionName), pool: \(identityPoolId)")
+
         guard let region = regionType(from: regionName) else {
-            print("❌ Invalid AWS region: \(regionName)")
+            print("❌ [AWSHelper] Invalid AWS region: \(regionName)")
             return false
         }
+        print("✅ [AWSHelper] Region parsed: \(region.rawValue)")
+
         let devAuth = AmazonIdentityProvider(regionType: region,
             identityPoolId: identityPoolId,
             useEnhancedFlow: true,
             identityProviderManager: nil)
+        print("✅ [AWSHelper] AmazonIdentityProvider created")
+
         let credentialsProvider = AWSCognitoCredentialsProvider(regionType: region,
                                                                 identityProvider: devAuth)
-        
+        print("✅ [AWSHelper] AWSCognitoCredentialsProvider created")
+
         let configuration = AWSServiceConfiguration(region: region,
             credentialsProvider: credentialsProvider)
+        print("✅ [AWSHelper] AWSServiceConfiguration created: \(String(describing: configuration))")
 
         AWSServiceManager.default().defaultServiceConfiguration = configuration
+        print("✅ [AWSHelper] Default service configuration set")
 
         let transferConfig = AWSS3TransferUtilityConfiguration()
         transferConfig.isAccelerateModeEnabled = false
 
-        AWSS3TransferUtility.register(with: configuration!,
-            transferUtilityConfiguration: transferConfig,
-            forKey: "awsUploaderTransferUtility")
+        // Register only once per key. Re-registering replaces the existing
+        // AWSS3TransferUtility and creates a new background NSURLSession with
+        // the same identifier, which causes the 2nd upload to hang silently.
+        // Credentials stay current because AmazonIdentityProvider reads from
+        // AWSHelper.shared.awsToken / awsIdentityId at call time.
+        if AWSS3TransferUtility.s3TransferUtility(forKey: "awsUploaderTransferUtility") == nil {
+            print("🔧 [AWSHelper] Registering AWSS3TransferUtility (first time)...")
+            AWSS3TransferUtility.register(with: configuration!,
+                transferUtilityConfiguration: transferConfig,
+                forKey: "awsUploaderTransferUtility")
+            print("✅ [AWSHelper] AWSS3TransferUtility registered")
+        } else {
+            print("✅ [AWSHelper] AWSS3TransferUtility already registered — reusing existing instance")
+        }
 
-        AWSS3.register(with: configuration!, forKey: "awsUploaderS3")
+        if AWSS3.s3(forKey: "awsUploaderS3") == nil {
+            AWSS3.register(with: configuration!, forKey: "awsUploaderS3")
+            print("✅ [AWSHelper] AWSS3 registered")
+        } else {
+            print("✅ [AWSHelper] AWSS3 already registered — reusing existing instance")
+        }
+
         return true
     }
 }

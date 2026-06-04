@@ -1,49 +1,58 @@
 import 'package:flutter/services.dart';
+import 'aws_upload_result.dart';
+import 'aws_upload_progress_event.dart';
 
-/// AwsUploader Flutter plugin
+export 'aws_upload_result.dart';
+export 'aws_upload_progress_event.dart';
+
+/// Flutter plugin for uploading any file to AWS S3 via Cognito token auth.
 ///
-/// Provides functions to upload images to AWS S3 using Cognito token & identityId.
-/// Supports upload progress stream and cancellation.
+/// Supports progress streaming, cancellation, and multi-part uploads.
 class AwsUploader {
   static const MethodChannel _methodChannel = MethodChannel('aws_uploader');
-  static const EventChannel _eventChannel = EventChannel(
-    'aws_uploader_progress',
-  );
+  static const EventChannel _eventChannel = EventChannel('aws_uploader_progress');
 
-  /// Stream to listen for upload progress
-  /// Emits a map containing:
-  /// - "uploadId": the ID of the upload
-  /// - "status": progress/completed/failed
-  /// - "progress": percentage (only for progress)
-  /// - "url": S3 URL (only when completed)
-  static Stream<Map<String, dynamic>> get progressStream => _eventChannel
-      .receiveBroadcastStream()
-      .map((e) => Map<String, dynamic>.from(e));
-
-  /// Starts uploading an image to AWS S3
+  /// Broadcast stream of [AWSUploadProgressEvent] for all active uploads.
   ///
-  /// [uploadId] is a unique identifier for this upload
-  /// [bucketName] is your S3 bucket
-  /// [filePath] is the local path of the image
-  /// [fileName] is the name to save the image as in S3
-  /// [imageUploadFolder] is the S3 folder
-  /// [region] is AWS region
-  /// [identityId] and [awsToken] are Cognito credentials
-  /// [providerName] is the Cognito provider
-  static Future<String> startImgUpload({
+  /// Events include upload progress (0–100 %), completion with URL, and failure.
+  static Stream<AWSUploadProgressEvent> get progressStream =>
+      _eventChannel
+          .receiveBroadcastStream()
+          .map((e) => AWSUploadProgressEvent.fromMap(Map<String, dynamic>.from(e)));
+
+  /// Uploads any file to AWS S3 using Cognito token-based authentication.
+  ///
+  /// - [uploadId] unique identifier for this upload (used to correlate stream events)
+  /// - [awsToken] Cognito token from your backend
+  /// - [identityId] Cognito identity ID from your backend
+  /// - [bucketName] S3 bucket name
+  /// - [filePath] absolute local path to the file
+  /// - [fileName] filename to store in S3 (e.g. `photo.jpg`, `report.pdf`)
+  /// - [uploadFolder] S3 folder / prefix (e.g. `uploads/avatars`)
+  /// - [identityPoolId] Cognito identity pool ID from AWS Console
+  /// - [providerName] Cognito developer provider name from AWS Console
+  /// - [region] AWS region string (e.g. `us-east-1`)
+  /// - [contentType] MIME type override; auto-detected from [fileName] extension when omitted
+  ///
+  /// Returns an [AWSUploadResult] on both success and failure.
+  ///
+  /// Check [AWSUploadResult.success] to determine the outcome.
+  /// On failure, [AWSUploadResult.errorMessage] contains the reason.
+  static Future<AWSUploadResult> startFileUpload({
     required String uploadId,
     required String awsToken,
     required String identityId,
     required String bucketName,
     required String filePath,
     required String fileName,
-    required String imageUploadFolder,
+    required String uploadFolder,
     required String identityPoolId,
     required String providerName,
     required String region,
+    String? contentType,
   }) async {
     try {
-      final fileUrl = await _methodChannel.invokeMethod('startImgUpload', {
+      final raw = await _methodChannel.invokeMethod('startFileUpload', {
         'region': region,
         'uploadId': uploadId,
         'awsToken': awsToken,
@@ -51,21 +60,26 @@ class AwsUploader {
         'bucketName': bucketName,
         'filePath': filePath,
         'fileName': fileName,
-        'imageUploadFolder': imageUploadFolder,
+        'uploadFolder': uploadFolder,
         'identityPoolId': identityPoolId,
         'providerName': providerName,
+        if (contentType != null) 'contentType': contentType,
       });
-      return fileUrl;
+      return AWSUploadResult.fromMap(Map<String, dynamic>.from(raw));
     } on PlatformException catch (e) {
-      // Forward the exception with a meaningful message
-      throw Exception('AWS upload failed: ${e.message}');
+      return AWSUploadResult.failure(
+        uploadId: uploadId,
+        errorMessage: e.message ?? 'AWS upload failed',
+      );
     } catch (e) {
-      // Catch any other exceptions
-      throw Exception('Unexpected error while uploading to AWS: $e');
+      return AWSUploadResult.failure(
+        uploadId: uploadId,
+        errorMessage: 'Unexpected error while uploading to AWS: $e',
+      );
     }
   }
 
-  /// Cancel an ongoing upload by [uploadId]
+  /// Cancels an ongoing upload identified by [uploadId].
   static Future<void> cancelUpload(String uploadId) async {
     try {
       await _methodChannel.invokeMethod('cancelUpload', {'uploadId': uploadId});
